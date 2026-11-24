@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>mon_brain · 使用说明 / Docs</title>
+<meta name="description" content="Local, offline note brain on Ollama: organize / translate-summary / review. Data never leaves your machine.">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;color:#1e293b;font:15px/1.75 -apple-system,"Segoe UI","Noto Sans SC",sans-serif}
+.bar{position:sticky;top:0;z-index:10;background:#0f172a;color:#fff;display:flex;gap:14px;align-items:center;
+     justify-content:space-between;padding:12px 20px;flex-wrap:wrap}
+.bar b{font-size:15px}
+.bar .sub{opacity:.55;font-size:12px;margin-left:8px}
+.tabs{display:flex;gap:6px}
+.tab{background:rgba(255,255,255,.12);border:0;color:#fff;font:inherit;font-size:13px;padding:5px 12px;
+     border-radius:7px;cursor:pointer}
+.tab.on{background:#0e7490}
+.bar a{color:#fff;font-size:13px;text-decoration:none;opacity:.9}
+.wrap{max-width:920px;margin:0 auto;padding:0 16px 72px}
+.doc{background:#fff;border-radius:14px;padding:10px 26px 36px;margin-top:18px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+h1,h2{color:#0f172a;border-bottom:1px solid #e2e8f0;padding-bottom:6px}
+h3,h4{color:#0f172a;margin:26px 0 8px}
+code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 4px;font-size:13px}
+pre{background:#0f172a;color:#d7fbe8;padding:12px;border-radius:10px;overflow:auto;font-size:13px;line-height:1.6}
+pre code{background:none;border:0;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px}
+th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#f8fafc}
+ul,ol{padding-left:20px} li{margin:3px 0}
+li.sub{margin-left:22px;font-size:14px}
+a{color:#0e7490}
+[hidden]{display:none}
+</style></head>
+<body>
+<div class="bar">
+  <div><b>mon_brain</b><span class="sub">使用说明 · Docs · Documentation</span></div>
+  <div class="tabs"><button class="tab" data-lang="zh">中文</button><button class="tab" data-lang="en">English</button><button class="tab" data-lang="fr">Français</button></div>
+  <a href="https://github.com/NexPathArchitect/mon-brain">← 仓库 / Repository</a>
+</div>
+<div class="wrap">
+<div class="doc" data-lang="zh" hidden>
+<h1>mon_brain —— 本地 Ollama 个人整理 / 翻译总结 / 复盘工具</h1>
+<p><b>语言 / Languages / Langues</b>：<a href="README.md">中文</a> · <a href="README.en.md">English</a> · <a href="README.fr.md">Français</a> · <a href="https://nexpatharchitect.github.io/mon-brain/">📖 在线文档 / Docs / Documentation</a></p>
+<p>跑在本机 Ollama 上的命令行小工具：读素材 → 超长自动分片合并 → 按模式套提示词 → 调本地模型 → 输出 Markdown 到 <code>sortie/</code>。 数据不出本机；不依赖老师工坊项目的代码，只复用了同样的 Ollama 调用思路。</p>
+<h2>目录结构</h2>
+<pre><code>mon_brain\
+├── mon_brain.py          # 命令行主脚本（注释为英语，便于给老师阅读）
+├── app_web.py            # 本地图形界面（标准库起服务，复用同一内核）
+├── corrections.example.txt  # 静态误写对照表示例，复制成 corrections.txt 后用（真表不进仓库）
+├── prompts\              # 各模式提示词（改要求只改这里，不动代码）
+│   ├── organize.md
+│   ├── translate_summary.md
+│   └── recap.md
+├── tools\                # 自检与配置脚本
+│   ├── check_page.py     # 改前端后必跑：七项确定性检查
+│   └── fetch_vendor.ps1  # 重新下载本地 Tailwind
+├── static\               # 本地化的前端依赖（tailwind.js，页面不再走 CDN）
+├── samples\              # 合成示例素材，可安全公开，用来试每个模式
+├── sources\              # 待整理素材暂存；_upload\ 为网页上传临时目录（自动生成，不进仓库）
+├── sessions\             # 复盘多轮会话历史（JSON，自动生成，不进仓库）
+├── sortie\               # 生成的 Markdown 输出到这里（不进仓库）
+├── BACKLOG.md            # 待办与已验证结论（下一步做什么、为什么）
+├── CHANGELOG.md          # 变更记录
+└── .venv\                # 独立虚拟环境（已装 requests、pypdf）</code></pre>
+<p><b>隐私边界</b>：<code>sources/</code>、<code>sortie/</code>、<code>sessions/</code>、<code>corrections.txt</code> 都在 <code>.gitignore</code> 里，仓库里只有代码、提示词、示例素材和文档。</p>
+<h2>环境（已建好）</h2>
+<ul>
+<li>解释器：<code>.venv\Scripts\python.exe</code>（独立环境，不影响系统 Python 和老师项目）</li>
+<li>依赖：<code>requests</code>、<code>pypdf</code>（已安装）</li>
+<li>前提：Ollama 已启动，且已拉取对应模型</li>
+</ul>
+<p><b>从仓库克隆后第一次跑，做两件事：</b></p>
+<pre><code># 1) 生成本地对照表（示例表只有通用工具错拼，自己的表不进仓库）
+Copy-Item corrections.example.txt corrections.txt
+
+# 2) 确认前端依赖在本地（仓库里已带 static\tailwind.js；缺了才需要跑）
+powershell -ExecutionPolicy Bypass -File tools\fetch_vendor.ps1</code></pre>
+<p>先用 <code>samples\</code> 里的合成素材试手，别一上来就喂真实课堂转写。</p>
+<h2>三种模式与默认模型</h2>
+<table>
+<tr><th>模式 <code>--mode</code></th><th>用途</th><th>默认模型</th><th>思考链</th></tr>
+<tr><td><code>organize</code></td><td>客观提取、结构化整理</td><td><code>qwen2.5:latest</code></td><td>剥离</td></tr>
+<tr><td><code>translate_summary</code></td><td>总结 + 整理（法/英转写素材为主）</td><td><code>gemma3:12b</code></td><td>剥离</td></tr>
+<tr><td><code>recap</code></td><td>深度复盘 + 提问/问法评估 + 自检</td><td><code>qwen3:14b</code></td><td><b>保留</b></td></tr>
+</table>
+<p>模型可用 <code>--model</code> 手动覆盖。</p>
+<h2>算力配置（本机最优档，2026-11-23 实测）</h2>
+<p>显卡 RTX 5070 Ti Laptop 12 GB、内存 31 GB。Ollama 已按下表配好（用户级环境变量，重启 Ollama 生效），配置脚本见 <code>configure_ollama.ps1</code>：</p>
+<table>
+<tr><th>变量</th><th>值</th><th>作用</th></tr>
+<tr><td><code>OLLAMA_FLASH_ATTENTION</code></td><td><code>1</code></td><td>Flash Attention，提速 + 省显存</td></tr>
+<tr><td><code>OLLAMA_KV_CACHE_TYPE</code></td><td><code>q8_0</code></td><td>KV Cache 半精度→8bit，显存减半、质量几乎无损</td></tr>
+<tr><td><code>OLLAMA_NUM_PARALLEL</code></td><td><code>1</code></td><td>串行跑长文，避免并行把 KV Cache 撑爆</td></tr>
+<tr><td><code>OLLAMA_MAX_LOADED_MODELS</code></td><td><code>1</code></td><td>只留一个模型，防止两个 12B 抢显存</td></tr>
+<tr><td><code>OLLAMA_KEEP_ALIVE</code></td><td><code>30m</code></td><td>半小时不卸载，避免每次都付 15–20 秒冷加载</td></tr>
+</table>
+<p>验证方式（都是实测通过的状态）：<code>ollama ps</code> 显示 <code>100% GPU</code>；日志里 <code>offloaded 49/49 layers to GPU</code>、<code>flash_attn = enabled</code>、<code>K (q8_0) / V (q8_0)</code>。</p>
+<p><b>上下文窗口</b>：默认 <code>8192</code>（<code>MB_NUM_CTX</code> 可覆盖）。实测 <code>gemma3:12b</code> 热态下单次输出：<code>8192</code> → 27.6 秒 / 8.7 GB 显存；<code>12288</code> → 34.3 秒 / 8.9 GB 显存（仍 100% GPU）。<b>结论：8192 是甜点</b>，12288 慢 24%，只有在单份素材必须一次塞进去时才用。</p>
+<p><b>混合流水线（<code>--map-model</code>）</b>：分片摘要用快模型、终稿用精模型。28 694 字符法语转写实测：纯 <code>gemma3:12b</code> 344 秒；混合（<code>qwen2.5:latest</code> 分片 + <code>gemma3:12b</code> 终稿）<b>106 秒</b>，约 3.2 倍。</p>
+<ul>
+<li>分片阶段有 <b>token 硬上限</b> <code>MAP_PREDICT=420</code>（约 800 字符/片），光靠提示词约束小模型不可靠（实测它会写到 2 000+ 字符/片，把速度优势吃光）。</li>
+<li><b>二级压缩固定用精模型</b>：弱模型会把输入原样吐回，导致压缩停滞、整篇被误判为"超预算"而拒稿。</li>
+<li>Web 界面新增三档算力预设：<b>极速</b>（<code>qwen2.5:latest</code> 单模型）/ <b>均衡</b>（分片 <code>qwen2.5</code> + 终稿 <code>gemma3:12b</code>）/ <b>高质</b>（纯 <code>gemma3:12b</code>，数字与结构最准但最慢）。</li>
+<li>出稿 YAML 头部会记录 <code>map_model</code>，回看可知这份是怎么跑的。</li>
+</ul>
+<h2>原理与架构：长素材为什么反而更快</h2>
+<p>处理一条 28 694 字符的法语课转写，纯用 <code>gemma3:12b</code> 跑要 344 秒，混合流水线只要 106 秒。原因不是"多开几个 agent 并行"，而是<b>把每一步的工作量压小、把贵的那一步只做一次</b>。</p>
+<p>流水线（<code>mon_brain.py</code> 里的 <code>process_one</code>）：</p>
+<pre><code>素材（&gt;5000 字符）
+   │  split_text: 3500 字符/片，相邻重叠 200 字符（防止切断句子与上下文）
+   ▼
+[map] 每片单独调用 → 粗提炼，num_predict=420（约 800 字符上限）
+      └ 顺序执行，不是并行：Ollama 设为 NUM_PARALLEL=1，片上并行会抢显存
+   ▼
+合并稿（各片要点拼接）
+   │  若仍超过单次预算 → reduce_to_budget: 用精模型层级再压缩，最多 3 轮，压缩停滞即停
+   ▼
+[reduce] 合并稿 ≤ 预算（约 8700 字符）
+   ▼
+[final] 系统指令 + 任务提示词 + 语言要求 + 你的意图 + 合并稿 → 终稿</code></pre>
+<p><b>预算怎么来</b>：<code>NUM_CTX=8192</code> 减去输出预留，再减去指令预留（约 700 token），按 <code>CHAR_PER_TOKEN=2</code> 估算，得约 8700 字符的安全上限。超过就先分片；分片后仍超，才动第二级压缩。</p>
+<p><b>为什么变快</b>（三条，缺一不可）：</p>
+<ol>
+<li><b>贵模型只写一次</b>。<code>gemma3:12b</code> 每 token 约为 <code>qwen2.5:latest</code> 的 2.6 倍耗时，所以让它只做"终稿"这一件事，粗活交给小模型。</li>
+<li><b>输出被 token 上限钉死</b>。生成时间是输出长度的线性函数：每片限 420 token，9 片合计约 3 800 token，而不是让模型自由发挥写出两三万字。</li>
+<li><b>避免了"大模型反复压缩"的路</b>。单次塞 28k 会直接超上下文，只能靠 <code>gemma3</code> 一轮轮压缩，而每次压缩本身又是全量生成——纯 <code>gemma3</code> 那 344 秒大部分花在这里。混合方案的分片后合并稿只有 7 587 字符，一次就进终稿，压缩轮数为 0。</li>
+</ol>
+<p><b>它和"多个子 agent"的区别</b>：分片是固定流水线（map-reduce），同一套提示词、无状态、互相不通话、不做决策，只是把一次超长的请求切成若干次短请求；子 agent 是各自带目标、带工具、会自己规划下一步的独立执行者。前者能省时间是因为<b>总量变小</b>，不是因为有并行度。</p>
+<p><b>相关常量</b>（<code>mon_brain.py</code> 顶部）：<code>SPLIT_THRESHOLD=5000</code>、<code>CHUNK_SIZE=3500</code>、<code>CHUNK_OVERLAP=200</code>、<code>MAP_PREDICT=420</code>、<code>NUM_CTX=8192</code>、<code>MAX_REDUCE_ROUNDS=3</code>、<code>CHAR_PER_TOKEN=2</code>。</p>
+<h2>输出语言策略</h2>
+<p><b>正文始终用中文</b>；<code>--lang</code> 只控制关键术语/段落的<b>对照语言</b>，不会生成整段外文总结。文末术语表固定为 <b>中文 / English / Français</b> 三语。</p>
+<table>
+<tr><th><code>--lang</code></th><th>含义</th></tr>
+<tr><td><code>zh</code></td><td>仅中文正文，不附段落对照（默认）</td></tr>
+<tr><td><code>en</code></td><td>中文正文 + 关键术语/段落英语对照</td></tr>
+<tr><td><code>fr</code></td><td>中文正文 + 关键术语/段落法语对照</td></tr>
+<tr><td><code>bilingual</code></td><td>中文正文 + 英语、法语对照</td></tr>
+<tr><td><code>fr-zh</code></td><td><code>bilingual</code> 的旧别名，兼容保留</td></tr>
+</table>
+<h2>图形界面（Web UI）</h2>
+<p>除命令行外，也可以起一个本地网页界面（127.0.0.1，数据仍不出本机）：</p>
+<pre><code>cd C:\path\to\mon_brain
+.\.venv\Scripts\python.exe app_web.py
+# 自动打开 http://127.0.0.1:5000</code></pre>
+<ul>
+<li>界面默认<b>英语</b>，右上角可切<b>中文 / 法语</b>（方便给不懂中文的老师演示）。</li>
+<li><b>页面自带说明</b>：顶部「使用须知」可展开六条（模式区别、三档实测耗时、分片模型是什么、调试信息是什么、意图怎么填、复盘如何追问）；每个控件旁的 <code>?</code> 徽标悬停或点击会弹出当前语言的解释。模式下拉直接写成 <code>translate_summary · 翻译总结 · Résumé</code>，不用记英文名。</li>
+<li><b>完全离线可用</b>：Tailwind 已本地化到 <code>static\tailwind.js</code>（页面从 <code>/static/tailwind.js</code> 加载，不再请求 CDN）；新机器上若缺文件，跑 <code>tools\fetch_vendor.ps1</code> 一次即可。断网、无外网教室都能正常显示。</li>
+<li><b><code>/docs</code> 说明页</b>：顶部「说明 / Docs」会在新标签打开 <code>http://127.0.0.1:5000/docs</code>，直接把本 README 渲染成网页（可切中文 / English / Français），原理、架构、参数表、实测数据都在里面，适合用完后回来复习。右上角可返回工作台。</li>
+<li><b>处理过程可见</b>：点开始后结果区上方会实时滚动进度日志（读取素材 → 分片 i/n → 调用模型 → 保存），不再是一块"假死"的静止画面。</li>
+<li><b>调试视图</b>：勾选「显示调试信息」，出稿后会附带实际使用的系统指令、任务提示词、语言要求、分片数、上下文字符预算、素材字符数等，便于对照排查。</li>
+<li><b>多会话切换</b>：「复盘会话」区列出 <code>sessions\</code> 里所有会话，点 open 直接载入历史对话气泡，可接着追问。</li>
+<li><b>提示词模板可编辑</b>：「提示词模板」区可下拉选择 <code>prompts\*.md</code>，直接编辑并保存回原文件，不用再开编辑器。</li>
+<li><b>输出两档</b>：</li>
+<li class="sub"><code>中文总结 + 对照</code>（默认）：中文正文 + 所选对照语言 + 三语术语表；</li>
+<li class="sub"><code>跟随素材语言整篇</code>：整篇用素材语言输出（法语素材出法语、英语素材出英语），不切中文。</li>
+<li>支持：多选文件上传、模式/对照语言/模型选择、多文件合并勾选、全新开始开关、复盘对话式追问、历史稿件查看与下载。</li>
+<li>复盘模式有一个可选「意图 / 你的提问」输入框（对应命令行 <code>--intent</code>）；留空则只复盘素材本身。</li>
+<li>连不上本地 Ollama 时，结果区会用红色醒目提示去启动 Ollama。</li>
+<li>网页上传的文件临时存在 <code>sources\_upload\</code>，超过 24 小时的临时目录会在下次上传时自动清理；生成的正式稿件仍落在 <code>sortie\</code>。</li>
+</ul>
+<h2>命令示例</h2>
+<p>在本目录打开 PowerShell：</p>
+<pre><code># 直接用 venv 的 Python（无需激活）
+$py = ".\.venv\Scripts\python.exe"
+
+# 1) 单个文件：总结 + 整理（默认模式，中文正文）
+&amp; $py mon_brain.py "C:\path\to\notes\lecture.txt" --lang bilingual
+
+# 2) 整个文件夹逐个生成 md
+&amp; $py mon_brain.py "C:\path\to\notes" --mode organize
+
+# 3) 多文件合并成一篇（文件间共享上下文）
+&amp; $py mon_brain.py "C:\path\to\notes" --mode organize --merge
+
+# 4) 复盘模式（保留思考链，评估问法 + 自检），并进入追问循环
+&amp; $py mon_brain.py sources\test_recap.txt --mode recap --interactive
+
+# 5) 续接上次复盘会话（多轮追问）
+&amp; $py mon_brain.py sources\test_recap.txt --mode recap --continue
+
+# 6) 手动指定模型；--fresh 表示不沿用上次草稿，从头生成
+&amp; $py mon_brain.py sources\xxx.docx --mode recap --model deepseek-r1:8b --fresh
+
+# 7) 查看有哪些提示词文件
+&amp; $py mon_brain.py --list-prompts</code></pre>
+<h2>命令行参数</h2>
+<table>
+<tr><th>参数</th><th>作用</th></tr>
+<tr><td><code>--mode</code></td><td><code>organize</code> / <code>translate_summary</code> / <code>recap</code>，默认 <code>translate_summary</code></td></tr>
+<tr><td><code>--model</code></td><td>覆盖该模式的默认模型</td></tr>
+<tr><td><code>--lang</code></td><td><code>zh</code> / <code>en</code> / <code>fr</code> / <code>bilingual</code>（见上表）</td></tr>
+<tr><td><code>--merge</code></td><td>文件夹输入时，把所有文件汇总成一篇，而不是逐篇出稿</td></tr>
+<tr><td><code>--fresh</code></td><td>关闭增量更新：不读取上次草稿，从头生成</td></tr>
+<tr><td><code>--interactive</code></td><td>复盘模式：首稿生成后进入追问 Q&amp;A 循环</td></tr>
+<tr><td><code>--intent</code></td><td>仅复盘模式：你本轮的提问 / 想得到什么，供第二步评估提问质量；留空则只复盘素材本身</td></tr>
+<tr><td><code>--continue</code></td><td>读取 <code>sessions\</code> 里上次的复盘会话，继续多轮追问</td></tr>
+<tr><td><code>--list-prompts</code></td><td>列出 <code>prompts\</code> 下的提示词后退出</td></tr>
+<tr><td><code>--map-model</code></td><td>混合流水线：分片摘要 / 二次压缩用这个快模型，终稿仍用 <code>--model</code> 的精模型</td></tr>
+</table>
+<h2>数字保真自检</h2>
+<p>终稿生成后会做一次机械校对：把素材里的"数字 + 单位"（如 <code>40%</code>、<code>10 points</code>、<code>3部</code>、<code>6篇</code>）和"三位数以上/反复出现的独立数字"（如课程号 <code>102</code>）抽出来，逐个确认是否出现在终稿里。</p>
+<ul>
+<li>有缺失：CLI 打印 <code>⚠ 数字保真自检…缺 X 项</code>，Web 结果区上方弹<b>琥珀色黄条</b>，列出缺失项；md 头部记 <code>fidelity_missing: N</code>。</li>
+<li>全在：CLI 打印 <code>✓ 数字保真自检通过</code>，Web 不打扰。</li>
+<li>这是启发式提醒，不是证明：它能抓"数字被丢掉/被改写"，但判断不了"数字挂错了条件"。所以黄条出现时请人工看一眼，别直接打印。</li>
+</ul>
+<h2>改前端后必跑：页面自检</h2>
+<p><code>app_web.py</code> 的界面是一整段内联 JS，一个括号写错就会让<b>整段脚本不执行</b>——表现是"语言按钮没反应、档位按钮没反应、上传也没反应"，很像前端事件没绑，实际是语法错误。改完必须先跑：</p>
+<pre><code>.\.venv\Scripts\python.exe tools\check_page.py</code></pre>
+<p>它做三件确定性检查：</p>
+<table>
+<tr><th>检查</th><th>抓什么</th></tr>
+<tr><td>JS 语法（调用 <code>node --check</code>）</td><td>缺括号、逗号、引号等，直接给出行号</td></tr>
+<tr><td>三语词典覆盖</td><td><code>data-i18n</code> 用到的键在 en/zh/fr 里是否齐全（缺键会显示原始键名，看着像切语言失效）</td></tr>
+<tr><td><code>getElementById</code> 目标</td><td>脚本里引用的 id 是否真的存在于 HTML（拼错就会绑到 null）</td></tr>
+</table>
+<p>退出码 0 才算通过。这个脚本做过反向验证：故意删一个 <code>);</code>，它会失败并指出第 87 行。</p>
+<h2>静态误写对照表（corrections.txt）</h2>
+<p>语音转写里的常见错拼（如 <code>Olama → Ollama</code>、<code>Lama → Llama</code>、<code>LocalRoss → localhost</code>）写在 <code>corrections.txt</code>，脚本按素材内容命中后才注入提示词（剥离标点、忽略大小写、按词边界匹配），素材里没出现的条目不会塞进提示词，避免污染输出。</p>
+<ul>
+<li>格式：<code>错拼 =&gt; 正确词  # 备注</code>；<code>#</code> 开头为注释。</li>
+<li><code>[uncertain]</code> 区段为<b>待确认</b>项，输出时会标注存疑，不会当成定论。</li>
+<li>你可以随时往里增补自己遇到的高频错拼。</li>
+</ul>
+<h2>增量更新</h2>
+<p>再次处理同一素材（同模式、同文件名）时，脚本会自动在 <code>sortie\</code> 找最新一版旧稿，作为「上一版草稿」注入，在其基础上补充、修订，而不是从头再来。加 <code>--fresh</code> 可关闭此行为。旧稿永远不会被覆盖。</p>
+<h2>多文件合并与会话记忆</h2>
+<ul>
+<li><b>合并模式 <code>--merge</code></b>：逐文件先出要点摘要，前序文件的结论作为后续文件的背景上下文，最后融合成一篇总稿；输出头部 <code>source</code> 记录全部来源文件。</li>
+<li><b>复盘会话</b>：复盘的首轮问答会存入 <code>sessions\&lt;素材名&gt;.json</code>；<code>--interactive</code> 可在首稿后继续追问，<code>--continue</code> 下次接着上次的历史聊。追问记录会追加到同一篇 md。</li>
+</ul>
+<h2>输出规则</h2>
+<ul>
+<li>文件名：<code>日期_模式_素材名.md</code>；同名已存在自动加序号，<b>不覆盖原稿</b>。</li>
+<li>md 头部 YAML 元信息：来源文件、模式、模型、语言、日期；复盘稿附会话文件名。</li>
+<li><b>长素材</b>：超过约 5000 字符（或超过单次上下文预算）自动分片，逐片出要点摘要再合并成一篇；合并稿若仍超预算，会自动再压缩（最多 3 轮），仍放不下才提示你拆分处理，不硬截断。</li>
+<li>合并后素材仍过长时，会给出警告，提示拆成多次处理。</li>
+<li><b>复盘模式</b>：拆两段调用——先出素材复盘，再出问法评估 + 自检；思考链单独成节；外层多余 Markdown 围栏会被自动剥掉。</li>
+</ul>
+<h2>当前限制（后续批次再做）</h2>
+<ol>
+<li><b>复盘重复段落（已修）</b>：模型常在第二段把三大部分整篇重抄一遍。已加 <code>strip_repeated_sections</code>：按标题文本去重，遇到重复标题就截断（实测 4 836 → 2 501 字符）；同时 prompts/recap.md 明确「每部分只写一次」。</li>
+<li><b>段落对照执行不到位</b>：本地 12B 模型对「关键段落附外文对照」的遵循不稳定，多数时候只在术语表给出三语对照；正文段落对照可能缺失。</li>
+<li><b>生成长度上限</b>：单次输出上限约 2048–2560 token，极长回答结尾仍可能不完整。</li>
+<li><b>扫描版 PDF 读不了</b>：图片型 PDF 需要 OCR（llava / easyocr），尚未接入。</li>
+<li><b>模型能力上限</b>：本地 7B–12B 模型在法语地道度、长文逻辑、术语英译上不如云端大模型；输出需本人终审，存疑项不要当定论。</li>
+<li>待做：源码项目解析、扫描 PDF OCR、分段续写长回答；网页结果区目前以纯文本展示 Markdown，富文本渲染留待后续。</li>
+</ol>
+<h2>常见报错</h2>
+<ul>
+<li><b>连不上 Ollama / Connection refused</b>：确认 Ollama 已启动（任务栏图标，或另开终端 <code>ollama serve</code>）。</li>
+<li><b>model not found</b>：模型名和 <code>ollama list</code> 里不一致；用 <code>--model</code> 改成列表里的精确名字。</li>
+<li><b>PDF 读不出文字</b>：大概率是扫描图片 PDF，当前版本不支持 OCR。</li>
+<li><b>中文/法语乱码</b>：脚本已强制 UTF-8；如控制台仍乱码，确认用的是 <code>.venv</code> 里的 Python。</li>
+</ul>
+<h2>版权与使用（非开源许可）</h2>
+<p>版权所有 © 2026 NexPathArchitect，<b>保留所有权利</b>。</p>
+<ul>
+<li>可以：阅读代码、学习思路、在本地运行你自己的副本；</li>
+<li>不可以：未经书面许可复制、修改、再发布、商用，或把它署名为自己的作品；</li>
+<li>转载或引用本文档内容请注明来源与本仓库地址。</li>
+</ul>
+<p>需要授权请联系仓库作者。本仓库<b>不是</b>开源项目，没有附带任何开源许可证。</p>
+</div><div class="doc" data-lang="en" hidden>
+<h1>mon_brain — local Ollama note organizer / translator-summary / review tool</h1>
+<p><b>Languages / Langues / 语言</b>：<a href="README.en.md">English</a> · <a href="README.md">中文</a> · <a href="README.fr.md">Français</a> · <a href="https://nexpatharchitect.github.io/mon-brain/">📖 在线文档 / Docs / Documentation</a></p>
+<p><b>← <a href="README.md">返回中文版本 / Back to Chinese</a></b></p>
+<p>A command-line tool running on your local Ollama: read source material → auto-split long text and merge summaries → apply the per-mode prompt → call the local model → export Markdown to <code>sortie/</code>. Data never leaves this machine; it does not depend on the teacher's workshop project, only reusing the same Ollama calling approach.</p>
+<h2>Directory layout</h2>
+<pre><code>mon_brain\
+├── mon_brain.py        # CLI main script (comments in English for reviewers)
+├── app_web.py          # local web UI (standard-library server, same kernel reused)
+├── corrections.txt     # static transcription correction table (misspelling -&gt; correct word, editable)
+├── prompts\            # per-mode prompts (change requirements here, not in code)
+│   ├── organize.md
+│   ├── translate_summary.md
+│   └── recap.md
+├── sources\            # staging folder; _upload\ holds temporary web uploads (auto-generated)
+├── sessions\           # recap multi-turn session history (JSON, auto-generated)
+├── sortie\             # generated Markdown output (new file each run; originals are never overwritten)
+└── .venv\              # isolated virtual environment (requests, pypdf installed)</code></pre>
+<h2>Environment (already set up)</h2>
+<ul>
+<li>Interpreter: <code>.venv\Scripts\python.exe</code> (isolated; does not touch system Python or the teacher's project)</li>
+<li>Dependencies: <code>requests</code>, <code>pypdf</code> (installed)</li>
+<li>Prerequisite: Ollama is running and the required models are pulled</li>
+</ul>
+<h2>Modes and default models</h2>
+<table>
+<tr><th><code>--mode</code></th><th>Purpose</th><th>Default model</th><th>Thinking chain</th></tr>
+<tr><td><code>organize</code></td><td>Objective extraction &amp; structured organizing</td><td><code>qwen2.5:latest</code></td><td>stripped</td></tr>
+<tr><td><code>translate_summary</code></td><td>Summary + organizing (mainly FR/EN transcripts)</td><td><code>gemma3:12b</code></td><td>stripped</td></tr>
+<tr><td><code>recap</code></td><td>Deep review + question evaluation + self-check</td><td><code>qwen3:14b</code></td><td><b>kept</b></td></tr>
+</table>
+<p>The model can be overridden with <code>--model</code>.</p>
+<h2>GPU / compute configuration (measured on this laptop, 2026-11-23)</h2>
+<p>Ollama is configured for an RTX 5070 Ti Laptop GPU (12 GB VRAM) via user environment variables; re-apply with <code>configure_ollama.ps1</code> after a fresh install.</p>
+<table>
+<tr><th>Variable</th><th>Value</th><th>Effect</th></tr>
+<tr><td><code>OLLAMA_FLASH_ATTENTION</code></td><td><code>1</code></td><td>Flash Attention: faster warmup and lighter KV cache</td></tr>
+<tr><td><code>OLLAMA_KV_CACHE_TYPE</code></td><td><code>q8_0</code></td><td>halves KV-cache memory with negligible quality loss</td></tr>
+<tr><td><code>OLLAMA_NUM_PARALLEL</code></td><td><code>1</code></td><td>serial long-document runs, avoids VRAM blow-up</td></tr>
+<tr><td><code>OLLAMA_MAX_LOADED_MODELS</code></td><td><code>1</code></td><td>one 12B model at a time</td></tr>
+<tr><td><code>OLLAMA_KEEP_ALIVE</code></td><td><code>30m</code></td><td>no 15–20 s reload before every run</td></tr>
+</table>
+<p>Verified state: <code>ollama ps</code> shows <code>100% GPU</code>; the server log reports <code>offloaded 49/49 layers to GPU</code>, <code>flash_attn = enabled</code>, <code>K (q8_0) / V (q8_0)</code>.</p>
+<p>Context window defaults to <code>8192</code> (override with <code>MB_NUM_CTX</code>). Warm measurements for one <code>gemma3:12b</code> answer: <code>8192</code> → 27.6 s / 8.7 GB; <code>12288</code> → 34.3 s / 8.9 GB. <b>8192 is the sweet spot</b>; 24% slower otherwise.</p>
+<p>Hybrid pipeline (<code>--map-model</code>): chunk summaries by a fast model, final note by the strong one. On a 28 694-char French transcript: pure <code>gemma3:12b</code> 344 s vs hybrid (<code>qwen2.5:latest</code> + <code>gemma3:12b</code>) <b>106 s</b> (~3.2x). Two safeguards matter:</p>
+<ul>
+<li>the map stage has a hard token cap (<code>MAP_PREDICT=420</code>), because small models ignore "be brief";</li>
+<li>re-compression always uses the strong model, since a weak one echoes its input and stalls the loop.</li>
+</ul>
+<p>Web UI presets: <b>Fast</b> (single <code>qwen2.5:latest</code>), <b>Balanced</b> (chunk <code>qwen2.5</code> + final <code>gemma3:12b</code>), <b>Quality</b> (pure <code>gemma3:12b</code>). The output YAML header records <code>map_model</code>.</p>
+<h2>How it works: why a long source gets *faster*</h2>
+<p>A 28 694-char French lecture transcript takes 344 s with <code>gemma3:12b</code> alone and 106 s with the hybrid pipeline. The gain does not come from running agents in parallel: it comes from shrinking the work done at every step and paying for the expensive model only once.</p>
+<pre><code>source (&gt;5000 chars)
+   │  split_text: 3500 chars/chunk, 200-char overlap (no cut sentences, no lost context)
+   ▼
+[map] one call per chunk -&gt; rough bullets, num_predict=420 (~800 chars cap)
+      sequential on purpose: Ollama runs NUM_PARALLEL=1, parallel chunks would contend for VRAM
+   ▼
+merged summary
+   │  only if still over budget -&gt; reduce_to_budget: hierarchical re-compression
+   │  with the strong model, max 3 rounds, stops when compression stalls
+   ▼
+[final] system + task prompt + language rule + your intent + merged summary -&gt; the note</code></pre>
+<p>Budget: <code>NUM_CTX=8192</code> minus the output reserve minus ~700 instruction tokens, estimated at <code>CHAR_PER_TOKEN=2</code> → roughly 8 700 safe characters per single run.</p>
+<p>Three reasons it is faster: (1) the 12B model writes only the final note, roughly 2.6x slower per token than the 7B one; (2) generation time scales with output length, and every chunk is capped at 420 tokens instead of free-running for thousands; (3) it avoids the expensive route where a 28k source blows the context and <code>gemma3</code> has to re-compress round after round, each round a full generation.</p>
+<p>How this differs from "multiple sub-agents": chunking is a fixed map-reduce pipeline — same prompt, stateless, no cross-talk, no decisions — it just turns one oversized request into several short ones. Sub-agents each carry their own goal, tools and planning. The speedup here comes from *less total work*, not from concurrency.</p>
+<h2>Output language policy</h2>
+<p><b>The body is always written in Chinese.</b> <code>--lang</code> only controls the parallel language for key terms/paragraphs; it never produces a whole foreign-language summary. The ending glossary is always trilingual: <b>中文 / English / Français</b>.</p>
+<table>
+<tr><th><code>--lang</code></th><th>Meaning</th></tr>
+<tr><td><code>zh</code></td><td>Chinese body only, no paragraph parallel text (default)</td></tr>
+<tr><td><code>en</code></td><td>Chinese body + English parallel for key terms/paragraphs</td></tr>
+<tr><td><code>fr</code></td><td>Chinese body + French parallel for key terms/paragraphs</td></tr>
+<tr><td><code>bilingual</code></td><td>Chinese body + English and French parallel</td></tr>
+<tr><td><code>fr-zh</code></td><td>legacy alias for <code>bilingual</code>, kept for compatibility</td></tr>
+</table>
+<h2>Web UI</h2>
+<p>Besides the CLI, a local web dashboard is available (127.0.0.1; data still stays on this machine):</p>
+<pre><code>cd C:\path\to\mon_brain
+.\.venv\Scripts\python.exe app_web.py
+# opens http://127.0.0.1:5000 automatically</code></pre>
+<ul>
+<li>The UI defaults to <b>English</b>; switch to <b>Chinese / French</b> in the top-right corner (handy for a reviewer who reads English).</li>
+<li><b>Self-documenting UI</b>: the collapsible *Quick guide* covers the three modes, the measured cost of each preset (with the exact model names), what the chunk-summary model does, what debug details show, how to fill the intent box, and how to keep asking questions in recap. Every control has a <code>?</code> badge with a tooltip in the current language, and mode names read <code>translate_summary · 翻译总结 · Résumé</code>.</li>
+<li><b>Fully offline</b>: Tailwind is vendored to <code>static\tailwind.js</code> and served from <code>/static/tailwind.js</code>, so the page no longer calls a CDN. On a fresh machine run <code>tools\fetch_vendor.ps1</code> once.</li>
+<li><b><code>/docs</code> page</b>: «说明 / Docs» in the header opens <code>http://127.0.0.1:5000/docs</code> in a new tab and renders this README as a web page (zh / en / fr switchable) — principles, architecture, parameter tables, measurements. Handy when you want to re-read instead of re-learn. A back link returns to the workbench.</li>
+<li>Two output modes:</li>
+<li class="sub"><code>Chinese summary + parallel terms</code> (default): Chinese body + selected parallel language + trilingual glossary;</li>
+<li class="sub"><code>Follow source language (whole answer)</code>: the whole answer is written in the source language (French source → French, English source → English), no Chinese switch.</li>
+<li>Supports: multi-file upload, mode / parallel language / model selection, merge toggle, fresh-start toggle, recap follow-up chat, history list with view and download.</li>
+<li>Recap has an optional "intent / your question" box (CLI <code>--intent</code>); leave it empty to review the source only.</li>
+<li>If local Ollama cannot be reached, the result area shows a red alert telling you to start Ollama.</li>
+<li>Uploaded files are staged temporarily in <code>sources\_upload\</code>; folders older than 24h are auto-cleaned on the next upload. Final notes still land in <code>sortie\</code>.</li>
+</ul>
+<h2>Examples</h2>
+<p>Open PowerShell in this folder:</p>
+<pre><code># Use the venv Python directly (no activation needed)
+$py = ".\.venv\Scripts\python.exe"
+
+# 1) Single file: summary + organizing (default mode, Chinese body)
+&amp; $py mon_brain.py "C:\path\to\notes\lecture.txt" --lang bilingual
+
+# 2) Process every file in a folder into its own note
+&amp; $py mon_brain.py "C:\path\to\notes" --mode organize
+
+# 3) Merge all files in the folder into one note (shared context across files)
+&amp; $py mon_brain.py "C:\path\to\notes" --mode organize --merge
+
+# 4) Recap mode (keeps thinking chain, evaluates the question + self-check), then enter a follow-up loop
+&amp; $py mon_brain.py sources\test_recap.txt --mode recap --interactive
+
+# 5) Continue the previous recap session (multi-turn follow-up)
+&amp; $py mon_brain.py sources\test_recap.txt --mode recap --continue
+
+# 6) Override the model; --fresh ignores the previous draft and starts over
+&amp; $py mon_brain.py sources\xxx.docx --mode recap --model deepseek-r1:8b --fresh
+
+# 7) List the available prompt files
+&amp; $py mon_brain.py --list-prompts</code></pre>
+<h2>CLI arguments</h2>
+<table>
+<tr><th>Argument</th><th>Effect</th></tr>
+<tr><td><code>--mode</code></td><td><code>organize</code> / <code>translate_summary</code> / <code>recap</code>; default <code>translate_summary</code></td></tr>
+<tr><td><code>--model</code></td><td>override the default model for the mode</td></tr>
+<tr><td><code>--lang</code></td><td><code>zh</code> / <code>en</code> / <code>fr</code> / <code>bilingual</code> (see table above)</td></tr>
+<tr><td><code>--merge</code></td><td>for a folder input, combine all files into one note instead of one note per file</td></tr>
+<tr><td><code>--fresh</code></td><td>disable incremental update: do not read the previous draft, start from scratch</td></tr>
+<tr><td><code>--interactive</code></td><td>recap: after the first draft, enter a follow-up Q&amp;A loop</td></tr>
+<tr><td><code>--intent</code></td><td>recap only: your question / what you want this round, used to review question quality; leave empty to review the source only</td></tr>
+<tr><td><code>--continue</code></td><td>load the previous recap session from <code>sessions\</code> and continue the multi-turn chat</td></tr>
+<tr><td><code>--list-prompts</code></td><td>list prompt files under <code>prompts\</code> and exit</td></tr>
+</table>
+<h2>Web UI checks (run after every front-end edit)</h2>
+<p>The UI ships as one inline <code>&lt;script&gt;</code>; a single missing bracket stops the whole script, so language buttons, compute presets and upload all look "dead". Run this first:</p>
+<pre><code>.\.venv\Scripts\python.exe tools\check_page.py</code></pre>
+<p>It validates JS syntax (<code>node --check</code>), i18n key coverage for en/zh/fr, and that every <code>getElementById</code> target exists in the HTML. Exit code 0 means clean.</p>
+<h2>Static correction table (corrections.txt)</h2>
+<p>Common speech-to-text misspellings (e.g. <code>Olama → Ollama</code>, <code>Lama → Llama</code>, <code>LocalRoss → localhost</code>) are listed in <code>corrections.txt</code>. The script loads it at startup and injects it into the prompt so the model restores the correct words.</p>
+<ul>
+<li>Format: <code>wrong =&gt; correct  # note</code>; lines starting with <code>#</code> are comments.</li>
+<li>The <code>[uncertain]</code> section lists items to confirm; they are marked uncertain in the output and never stated as fact.</li>
+<li>Add your own frequent misspellings at any time.</li>
+</ul>
+<h2>Incremental update</h2>
+<p>When the same source (same mode, same file name) is processed again, the script automatically finds the latest previous draft in <code>sortie\</code> and injects it as the "previous draft", so it revises and supplements it instead of starting over. Pass <code>--fresh</code> to disable this. Old drafts are never overwritten.</p>
+<h2>Merge mode and session memory</h2>
+<ul>
+<li><b>Merge mode <code>--merge</code></b>: each file is summarized first; earlier files' conclusions are carried forward as background context for later files, then everything is fused into one note. The output header <code>source</code> lists all input files.</li>
+<li><b>Recap sessions</b>: the first recap exchange is stored in <code>sessions\&lt;source&gt;.json</code>; <code>--interactive</code> lets you keep asking after the first draft, and <code>--continue</code> resumes the last history next time. Follow-up turns are appended to the same Markdown note.</li>
+</ul>
+<h2>Output rules</h2>
+<ul>
+<li>File name: <code>date_mode_source.md</code>; an existing name gets an incremented number — <b>originals are never overwritten</b>.</li>
+<li>YAML header: source file, mode, model, language, date; recap notes also reference the session file.</li>
+<li><b>Long material</b>: over ~5000 characters it is auto-split into chunks, each summarized, then merged into one note (no hard truncation).</li>
+<li>If the merged source is still too long, a warning suggests processing it in separate runs.</li>
+<li><b>Recap mode</b>: two calls — material review first, then question evaluation + self-check; the thinking chain is kept in its own section; stray outer Markdown fences are stripped automatically.</li>
+</ul>
+<h2>Current limitations (later batches)</h2>
+<ol>
+<li><b>Repeated recap sections (fixed)</b>: the second call often re-emits all three sections. <code>strip_repeated_sections</code> now truncates at the first repeated heading (4 836 -&gt; 2 501 chars in a real run), and prompts/recap.md states "write each section once".</li>
+<li><b>Paragraph parallel text is unreliable</b>: local 12B models do not consistently follow "append a foreign parallel to key paragraphs"; most of the time only the trilingual glossary is produced.</li>
+<li><b>Generation length cap</b>: about 2048–2560 tokens per call; very long answers may still end incompletely.</li>
+<li><b>Scanned PDFs cannot be read</b>: image PDFs need OCR (llava / easyocr), not yet integrated.</li>
+<li><b>Model ceiling</b>: local 7B–12B models are weaker than cloud models in French idiomaticness, long-text logic, and English term rendering; review the output yourself and do not treat uncertain items as fact.</li>
+<li>To do: source-code project parsing, scanned-PDF OCR, segmented continuation of long answers; the web result area currently shows Markdown as plain text, rich rendering is left for later.</li>
+</ol>
+<h2>Troubleshooting</h2>
+<ul>
+<li><b>Cannot reach Ollama / Connection refused</b>: make sure Ollama is running (taskbar icon, or run <code>ollama serve</code> in another terminal).</li>
+<li><b>model not found</b>: the model name does not match <code>ollama list</code>; use <code>--model</code> with the exact name from the list.</li>
+<li><b>PDF yields no text</b>: most likely a scanned image PDF; OCR is not supported in this version.</li>
+<li><b>Garbled Chinese/French text</b>: the script forces UTF-8; if the console still garbles, make sure you are using the <code>.venv</code> Python.</li>
+</ul>
+<h2>Copyright and use (not an open-source licence)</h2>
+<p>Copyright © 2026 NexPathArchitect. <b>All rights reserved.</b></p>
+<ul>
+<li>You may: read the code, learn from the approach, run your own local copy.</li>
+<li>You may not: copy, modify, redistribute or use it commercially without written permission, or present it as your own work.</li>
+<li>If you quote this documentation, credit the author and this repository.</li>
+</ul>
+<p>Contact the repository owner for permission. This repository is <b>not</b> open source and ships no open-source licence.</p>
+</div><div class="doc" data-lang="fr" hidden>
+<h1>mon_brain — outil local Ollama d'organisation / résumé-traduction / révision</h1>
+<p><b>Langues / Languages / 语言</b>：<a href="README.fr.md">Français</a> · <a href="README.en.md">English</a> · <a href="README.md">中文</a> · <a href="https://nexpatharchitect.github.io/mon-brain/">📖 在线文档 / Docs / Documentation</a></p>
+<p><b>← <a href="README.md">返回中文版本 / Retour au chinois</a></b></p>
+<p>Outil en ligne de commande tournant sur votre Ollama local : lire la source → découper automatiquement les textes longs et fusionner les résumés → appliquer le prompt du mode → appeler le modèle local → exporter le Markdown dans <code>sortie/</code>. Les données ne quittent pas la machine ; l'outil ne dépend pas du projet d'atelier du professeur, il réutilise seulement la même façon d'appeler Ollama.</p>
+<h2>Structure du dossier</h2>
+<pre><code>mon_brain\
+├── mon_brain.py        # script CLI principal (commentaires en anglais pour les relecteurs)
+├── app_web.py          # interface web locale (serveur stdlib, même noyau réutilisé)
+├── corrections.txt     # table statique de corrections de transcription (faute -&gt; mot correct, modifiable)
+├── prompts\            # prompts par mode (changez les exigences ici, pas dans le code)
+│   ├── organize.md
+│   ├── translate_summary.md
+│   └── recap.md
+├── sources\            # dossier de transit ; _upload\ reçoit les envois web temporaires (généré auto)
+├── sessions\           # historique de session de révision multi-tours (JSON, généré automatiquement)
+├── sortie\             # sortie Markdown (nouveau fichier à chaque exécution ; les originaux ne sont jamais écrasés)
+└── .venv\              # environnement virtuel isolé (requests, pypdf installés)</code></pre>
+<h2>Environnement (déjà prêt)</h2>
+<ul>
+<li>Interpréteur : <code>.venv\Scripts\python.exe</code> (isolé ; ne touche pas au Python système ni au projet du professeur)</li>
+<li>Dépendances : <code>requests</code>, <code>pypdf</code> (installés)</li>
+<li>Prérequis : Ollama est démarré et les modèles nécessaires sont téléchargés</li>
+</ul>
+<h2>Modes et modèles par défaut</h2>
+<table>
+<tr><th><code>--mode</code></th><th>Rôle</th><th>Modèle par défaut</th><th>Chaîne de réflexion</th></tr>
+<tr><td><code>organize</code></td><td>Extraction objective et organisation structurée</td><td><code>qwen2.5:latest</code></td><td>retirée</td></tr>
+<tr><td><code>translate_summary</code></td><td>Résumé + organisation (principalement transcriptions FR/EN)</td><td><code>gemma3:12b</code></td><td>retirée</td></tr>
+<tr><td><code>recap</code></td><td>Révision approfondie + évaluation de la question + auto-contrôle</td><td><code>qwen3:14b</code></td><td><b>conservée</b></td></tr>
+</table>
+<p>Le modèle peut être surchargé avec <code>--model</code>.</p>
+<h2>Configuration GPU / calcul (mesurée sur ce portable, 2026-11-23)</h2>
+<p>Ollama est réglé pour une RTX 5070 Ti Laptop (12 Go de VRAM) via des variables d'environnement utilisateur ; relancez <code>configure_ollama.ps1</code> après une réinstallation.</p>
+<table>
+<tr><th>Variable</th><th>Valeur</th><th>Effet</th></tr>
+<tr><td><code>OLLAMA_FLASH_ATTENTION</code></td><td><code>1</code></td><td>Flash Attention : plus rapide, KV cache plus léger</td></tr>
+<tr><td><code>OLLAMA_KV_CACHE_TYPE</code></td><td><code>q8_0</code></td><td>mémoire du KV cache divisée par deux, perte de qualité négligeable</td></tr>
+<tr><td><code>OLLAMA_NUM_PARALLEL</code></td><td><code>1</code></td><td>exécution sérielle des longs documents</td></tr>
+<tr><td><code>OLLAMA_MAX_LOADED_MODELS</code></td><td><code>1</code></td><td>un seul modèle 12B en mémoire</td></tr>
+<tr><td><code>OLLAMA_KEEP_ALIVE</code></td><td><code>30m</code></td><td>évite 15–20 s de rechargement à chaque exécution</td></tr>
+</table>
+<p>Vérifié : <code>ollama ps</code> affiche <code>100% GPU</code> ; le journal indique <code>offloaded 49/49 layers to GPU</code>, <code>flash_attn = enabled</code>, <code>K (q8_0) / V (q8_0)</code>.</p>
+<p>Fenêtre de contexte : <code>8192</code> par défaut (surchargeable via <code>MB_NUM_CTX</code>). Mesures à chaud pour <code>gemma3:12b</code> : <code>8192</code> → 27,6 s / 8,7 Go ; <code>12288</code> → 34,3 s / 8,9 Go. <b>8192 est l'optimum.</b></p>
+<p>Pipeline hybride (<code>--map-model</code>) : résumés de fragments par un modèle rapide, note finale par le modèle fort. Sur une transcription française de 28 694 caractères : <code>gemma3:12b</code> seul 344 s vs hybride (<code>qwen2.5:latest</code> + <code>gemma3:12b</code>) <b>106 s</b> (~3,2x). Deux garde-fous : plafond de tokens à l'étape map (<code>MAP_PREDICT=420</code>) et recompression toujours confiée au modèle fort.</p>
+<p>Profils de l'interface web : <b>Rapide</b>, <b>Équilibré</b>, <b>Qualité</b>. L'en-tête YAML des notes enregistre <code>map_model</code>.</p>
+<h2>Principe : pourquoi une source longue devient *plus rapide*</h2>
+<p>Une transcription française de 28 694 caractères prend 344 s avec <code>gemma3:12b</code> seul, 106 s avec la chaîne hybride. Le gain ne vient pas d'agents exécutés en parallèle, mais du fait qu'on réduit le travail de chaque étape et qu'on ne paie le gros modèle qu'une fois.</p>
+<pre><code>source (&gt;5000 caractères)
+   │  split_text : 3500 caractères/fragment, chevauchement de 200 (pas de phrase coupée)
+   ▼
+[map] un appel par fragment -&gt; puces brutes, num_predict=420 (~800 caractères max)
+      séquentiel volontaire : NUM_PARALLEL=1, des fragments en parallèle se disputeraient la VRAM
+   ▼
+résumé fusionné
+   │  seulement si le budget est encore dépassé -&gt; reduce_to_budget avec le modèle fort,
+   │  3 tours maximum, arrêt dès que la compression stagne
+   ▼
+[final] consignes + prompt de tâche + règle de langue + votre intention + résumé -&gt; la note</code></pre>
+<p>Budget : <code>NUM_CTX=8192</code> moins la réserve de sortie et ~700 jetons d'instructions, estimé à <code>CHAR_PER_TOKEN=2</code> → environ 8 700 caractères sûrs par exécution.</p>
+<p>Trois raisons : (1) le 12B ne rédige que la note finale, environ 2,6 fois plus lent par jeton que le 7B ; (2) le temps de génération suit la longueur produite, et chaque fragment est plafonné à 420 jetons ; (3) on évite la voie coûteuse où une source de 28k dépasse le contexte et où <code>gemma3</code> doit recompresser tour après tour.</p>
+<p>Différence avec « plusieurs sous-agents » : le découpage est un pipeline map-reduce figé — même prompt, sans état, sans dialogue, sans décision — il transforme juste une requête trop longue en plusieurs courtes. Les sous-agents portent chacun un objectif, des outils et une planification. Ici le gain vient de *moins de travail total*, pas de la concurrence.</p>
+<h2>Politique de langue de sortie</h2>
+<p><b>Le corps du texte est toujours rédigé en chinois.</b> <code>--lang</code> ne contrôle que la langue de parallèle pour les termes/paragraphes clés ; il ne produit jamais de résumé entier en langue étrangère. Le glossaire final est toujours trilingue : <b>中文 / English / Français</b>.</p>
+<table>
+<tr><th><code>--lang</code></th><th>Signification</th></tr>
+<tr><td><code>zh</code></td><td>Corps chinois seul, sans parallèle de paragraphe (défaut)</td></tr>
+<tr><td><code>en</code></td><td>Corps chinois + parallèle anglais pour les termes/paragraphes clés</td></tr>
+<tr><td><code>fr</code></td><td>Corps chinois + parallèle français pour les termes/paragraphes clés</td></tr>
+<tr><td><code>bilingual</code></td><td>Corps chinois + parallèle anglais et français</td></tr>
+<tr><td><code>fr-zh</code></td><td>alias historique de <code>bilingual</code>, conservé pour compatibilité</td></tr>
+</table>
+<h2>Interface web</h2>
+<p>Outre la CLI, un tableau de bord web local est disponible (127.0.0.1 ; les données restent sur la machine) :</p>
+<pre><code>cd C:\path\to\mon_brain
+.\.venv\Scripts\python.exe app_web.py
+# ouvre automatiquement http://127.0.0.1:5000</code></pre>
+<ul>
+<li>L'interface est par défaut en <b>anglais</b> ; passage au <b>chinois / français</b> en haut à droite (pratique pour un relecteur anglophone).</li>
+<li><b>Interface auto-explicative</b> : le bloc dépliable *Guide d'utilisation* couvre les trois modes, le coût mesuré de chaque profil (avec le nom exact des modèles), le rôle du modèle de résumé de fragments, le contenu du panneau de débogage, comment remplir l'intention et comment continuer à interroger la révision. Chaque réglage a un badge <code>?</code> avec une infobulle dans la langue courante ; les modes s'affichent <code>translate_summary · 翻译总结 · Résumé</code>.</li>
+<li><b>Entièrement hors ligne</b> : Tailwind est localisé dans <code>static\tailwind.js</code> et servi depuis <code>/static/tailwind.js</code> (plus d'appel au CDN). Sur une nouvelle machine, lancer <code>tools\fetch_vendor.ps1</code> une fois.</li>
+<li><b>Page <code>/docs</code></b> : «说明 / Docs» en haut ouvre <code>http://127.0.0.1:5000/docs</code> dans un nouvel onglet et affiche ce README en page web (zh / en / fr). Principe, architecture, tableaux de paramètres, mesures. Un lien permet de revenir à l'atelier.</li>
+<li>Deux modes de sortie :</li>
+<li class="sub"><code>Résumé chinois + termes parallèles</code> (défaut) : corps chinois + langue parallèle choisie + glossaire trilingue ;</li>
+<li class="sub"><code>Suivre la langue de la source (réponse entière)</code> : réponse entière dans la langue de la source (source française → français, anglaise → anglais), sans passage au chinois.</li>
+<li>Prend en charge : envoi de plusieurs fichiers, choix du mode / langue parallèle / modèle, case de fusion, démarrage à neuf, suivi de révision en bulle, liste historique avec visualisation et téléchargement.</li>
+<li>La révision propose un champ facultatif « intention / votre question » (CLI <code>--intent</code>) ; laisser vide pour réviser le seul matériau.</li>
+<li>Si Ollama local est inaccessible, la zone de résultat affiche une alerte rouge pour le démarrer.</li>
+<li>Les fichiers envoyés sont temporaires dans <code>sources\_upload\</code> ; les dossiers de plus de 24 h sont nettoyés au prochain envoi. Les notes finales restent dans <code>sortie\</code>.</li>
+</ul>
+<h2>Exemples</h2>
+<p>Ouvrez PowerShell dans ce dossier :</p>
+<pre><code># Utiliser directement le Python du venv (sans activation)
+$py = ".\.venv\Scripts\python.exe"
+
+# 1) Fichier seul : résumé + organisation (mode par défaut, corps chinois)
+&amp; $py mon_brain.py "C:\path\to\notes\lecture.txt" --lang bilingual
+
+# 2) Traiter chaque fichier d'un dossier en note séparée
+&amp; $py mon_brain.py "C:\path\to\notes" --mode organize
+
+# 3) Fusionner tous les fichiers du dossier en une seule note (contexte partagé)
+&amp; $py mon_brain.py "C:\path\to\notes" --mode organize --merge
+
+# 4) Mode révision (chaîne conservée, évaluation de la question + auto-contrôle), puis boucle de suivi
+&amp; $py mon_brain.py sources\test_recap.txt --mode recap --interactive
+
+# 5) Reprendre la session de révision précédente (suivi multi-tours)
+&amp; $py mon_brain.py sources\test_recap.txt --mode recap --continue
+
+# 6) Surcharger le modèle ; --fresh ignore le brouillon précédent et repart de zéro
+&amp; $py mon_brain.py sources\xxx.docx --mode recap --model deepseek-r1:8b --fresh
+
+# 7) Lister les fichiers de prompt disponibles
+&amp; $py mon_brain.py --list-prompts</code></pre>
+<h2>Paramètres CLI</h2>
+<table>
+<tr><th>Paramètre</th><th>Effet</th></tr>
+<tr><td><code>--mode</code></td><td><code>organize</code> / <code>translate_summary</code> / <code>recap</code> ; défaut <code>translate_summary</code></td></tr>
+<tr><td><code>--model</code></td><td>surcharger le modèle par défaut du mode</td></tr>
+<tr><td><code>--lang</code></td><td><code>zh</code> / <code>en</code> / <code>fr</code> / <code>bilingual</code> (voir tableau ci-dessus)</td></tr>
+<tr><td><code>--merge</code></td><td>pour un dossier, combiner tous les fichiers en une note au lieu d'une note par fichier</td></tr>
+<tr><td><code>--fresh</code></td><td>désactiver la mise à jour incrémentale : ne pas lire le brouillon précédent</td></tr>
+<tr><td><code>--interactive</code></td><td>révision : après le premier brouillon, entrer dans une boucle de questions/réponses</td></tr>
+<tr><td><code>--intent</code></td><td>révision uniquement : votre question / ce que vous attendez ce tour, pour évaluer la qualité de la question ; vide = révision du seul matériau</td></tr>
+<tr><td><code>--continue</code></td><td>charger la session de révision précédente depuis <code>sessions\</code> et continuer</td></tr>
+<tr><td><code>--list-prompts</code></td><td>lister les prompts dans <code>prompts\</code> puis quitter</td></tr>
+</table>
+<h2>Contrôles de l'interface (après chaque modification du front)</h2>
+<p>L'interface tient dans un seul <code>&lt;script&gt;</code> inline : une seule parenthèse manquante empêche tout le script de s'exécuter (boutons de langue, profils de calcul et upload semblent alors « morts »). À lancer avant tout test :</p>
+<pre><code>.\.venv\Scripts\python.exe tools\check_page.py</code></pre>
+<p>Il vérifie la syntaxe JS (<code>node --check</code>), la couverture des clés i18n en/zh/fr, et l'existence de chaque cible <code>getElementById</code> dans le HTML. Code de sortie 0 = tout est bon.</p>
+<h2>Table statique de corrections (corrections.txt)</h2>
+<p>Les fautes courantes de reconnaissance vocale (ex. <code>Olama → Ollama</code>, <code>Lama → Llama</code>, <code>LocalRoss → localhost</code>) sont listées dans <code>corrections.txt</code>. Le script la charge au démarrage et l'injecte dans le prompt pour que le modèle restaure les bons mots.</p>
+<ul>
+<li>Format : <code>faute =&gt; correct  # note</code> ; les lignes commençant par <code>#</code> sont des commentaires.</li>
+<li>La section <code>[uncertain]</code> contient les éléments à confirmer ; ils sont marqués incertains dans la sortie et jamais présentés comme des faits.</li>
+<li>Ajoutez vos propres fautes fréquentes à tout moment.</li>
+</ul>
+<h2>Mise à jour incrémentale</h2>
+<p>Lors du retraitement d'une même source (même mode, même nom de fichier), le script retrouve automatiquement le dernier brouillon dans <code>sortie\</code> et l'injecte comme « brouillon précédent » : il le révise et le complète au lieu de repartir de zéro. <code>--fresh</code> désactive ce comportement. Les anciens brouillons ne sont jamais écrasés.</p>
+<h2>Fusion et mémoire de session</h2>
+<ul>
+<li><b>Mode fusion <code>--merge</code></b> : chaque fichier est d'abord résumé ; les conclusions des fichiers précédents servent de contexte aux suivants, puis tout est fusionné en une note unique. L'en-tête <code>source</code> liste tous les fichiers d'entrée.</li>
+<li><b>Sessions de révision</b> : le premier échange est stocké dans <code>sessions\&lt;source&gt;.json</code> ; <code>--interactive</code> permet de continuer à poser des questions après le premier brouillon, et <code>--continue</code> reprend l'historique suivant. Les tours de suivi sont ajoutés à la même note Markdown.</li>
+</ul>
+<h2>Règles de sortie</h2>
+<ul>
+<li>Nom de fichier : <code>date_mode_source.md</code> ; un nom existant reçoit un numéro incrémenté — <b>les originaux ne sont jamais écrasés</b>.</li>
+<li>En-tête YAML : source, mode, modèle, langue, date ; les notes de révision référencent aussi le fichier de session.</li>
+<li><b>Texte long</b> : au-delà d'environ 5000 caractères, découpage en fragments, résumé de chaque fragment puis fusion en une note (pas de troncature brute).</li>
+<li>Si la source fusionnée reste trop longue, un avertissement suggère de la traiter en plusieurs passages.</li>
+<li><b>Mode révision</b> : deux appels — révision de la source d'abord, puis évaluation de la question + auto-contrôle ; la chaîne de réflexion est conservée dans sa propre section ; les balises de bloc Markdown superflues sont retirées automatiquement.</li>
+</ul>
+<h2>Limites actuelles (lots ultérieurs)</h2>
+<ol>
+<li><b>Sections de révision répétées (corrigé)</b> : le second appel réémet souvent les trois sections. <code>strip_repeated_sections</code> coupe au premier titre répété (4 836 → 2 501 caractères sur un cas réel), et prompts/recap.md impose « chaque section une seule fois ».</li>
+<li><b>Parallèle de paragraphe peu fiable</b> : les modèles locaux 12B ne suivent pas constamment « ajouter un parallèle étranger aux paragraphes clés » ; le glossaire trilingue est souvent seul produit.</li>
+<li><b>Plafond de longueur</b> : environ 2048–2560 jetons par appel ; les très longues réponses peuvent rester incomplètes en fin.</li>
+<li><b>PDF scannés illisibles</b> : les PDF image nécessitent une OCR (llava / easyocr), pas encore intégrée.</li>
+<li><b>Plafond du modèle</b> : les modèles locaux 7B–12B sont moins bons que les modèles cloud sur l'idiomatique française, la logique longue et le rendu des termes anglais ; relisez la sortie et ne traitez pas les éléments incertains comme des faits.</li>
+<li>À faire : analyse de projet de code source, OCR des PDF scannés, continuation segmentée des longues réponses ; la zone de résultat web affiche actuellement le Markdown en texte brut, le rendu riche est à venir.</li>
+</ol>
+<h2>Dépannage</h2>
+<ul>
+<li><b>Impossible de joindre Ollama / Connection refused</b> : vérifiez qu'Ollama tourne (icône dans la barre des tâches, ou lancez <code>ollama serve</code> dans un autre terminal).</li>
+<li><b>model not found</b> : le nom du modèle ne correspond pas à <code>ollama list</code> ; utilisez <code>--model</code> avec le nom exact de la liste.</li>
+<li><b>PDF sans texte</b> : très probablement un PDF image scanné ; l'OCR n'est pas pris en charge dans cette version.</li>
+<li><b>Caractères chinois/français illisibles</b> : le script force l'UTF-8 ; si la console reste garbled, vérifiez que vous utilisez le Python du <code>.venv</code>.</li>
+</ul>
+<h2>Droits d'auteur et utilisation (pas une licence open source)</h2>
+<p>Copyright © 2026 NexPathArchitect. <b>Tous droits réservés.</b></p>
+<ul>
+<li>Autorisé : lire le code, en comprendre l'approche, exécuter votre propre copie locale.</li>
+<li>Interdit : copier, modifier, redistribuer ou utiliser à des fins commerciales sans autorisation écrite, ou se l'approprier.</li>
+<li>Toute citation de cette documentation doit créditer l'auteur et ce dépôt.</li>
+</ul>
+<p>Contactez le propriétaire du dépôt pour toute autorisation. Ce dépôt <b>n'est pas</b> open source et ne comporte aucune licence open source.</p>
+</div>
+</div>
+<script>
+(function(){
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+  var docs = Array.prototype.slice.call(document.querySelectorAll('.doc'));
+  function show(code){
+    tabs.forEach(function(t){ t.classList.toggle('on', t.dataset.lang === code); });
+    docs.forEach(function(d){ d.hidden = (d.dataset.lang !== code); });
+    try { history.replaceState(null, '', '#' + code); } catch (e) {}
+  }
+  tabs.forEach(function(t){ t.addEventListener('click', function(){ show(t.dataset.lang); }); });
+  var want = (location.hash || '').replace('#','');
+  var valid = docs.some(function(d){ return d.dataset.lang === want; });
+  show(valid ? want : 'zh');
+})();
+</script>
+</body></html>

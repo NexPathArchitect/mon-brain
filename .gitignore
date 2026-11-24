@@ -1,0 +1,16 @@
+# Local data and machine-specific files: never publish these.
+sources/
+sortie/
+sessions/
+_modelcmp/
+_bench*.log
+corrections.txt
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# OS
+Thumbs.db
+.DS_Store

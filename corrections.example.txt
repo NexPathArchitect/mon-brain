@@ -1,0 +1,41 @@
+# Static transcription correction table (EXAMPLE)
+# -------------------------------------------------------------
+# Copy this file to corrections.txt to use it:
+#   Copy-Item corrections.example.txt corrections.txt
+#
+# Purpose: fix speech-to-text misspellings that local models often fail to
+#          restore on their own. Only entries that actually appear in the
+#          material are injected into the prompt, so the table cannot leak
+#          unrelated vocabulary into your notes.
+#
+# Format:  wrong => correct   # optional note
+# Lines starting with "#" are ignored.
+#
+# Section [uncertain]: likely corrections that still need human confirmation.
+# They are kept separate and marked "to confirm" in the output.
+#
+
+# --- Confirmed: tooling / commands / technical terms ---
+Olama => Ollama
+Rolama => Ollama
+Olima => Ollama
+olamaliste => ollama list
+Lama => Llama
+LocalRoss => localhost
+YouState => useState
+use state => useState
+iA => IA
+réact => React
+endoïde => Android
+androïde => Android
+requirement => requirements.txt
+11 4 34 => 11434
+127.1.0 => 127.0.0.1
+
+[uncertain]
+# --- Likely but NOT confirmed; verify before relying on them ---
+BILD => build                 # build step, to confirm
+NPM Render => npm run         # to confirm
+in-cloud => ???               # possibly .venv, to confirm
+tims => temps                 # to confirm
+tims t => temps               # to confirm
