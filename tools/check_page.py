@@ -114,7 +114,7 @@ def check_guide(js: str) -> list[str]:
 def check_docs() -> list[str]:
     """The /docs page renders the READMEs; make sure Markdown survives conversion."""
     problems = []
-    for name, label in (("README.md", "zh"), ("README.en.md", "en"), ("README.fr.md", "fr")):
+    for name, label in (("README.md", "en"), ("README.zh.md", "zh"), ("README.fr.md", "fr")):
         path = ROOT / name
         if not path.exists():
             problems.append(f"{name} missing (docs page will fall back to placeholder)")
@@ -162,7 +162,7 @@ def check_pages_doc() -> list[str]:
         problems.append(f"docs/index.html rendered only {html.count('<table>')} tables (Markdown conversion broken?)")
     # stale check: the page embeds the READMEs, so a size mismatch means it was not rebuilt
     expected = sum(len(app_web.md_to_html((ROOT / f).read_text(encoding="utf-8")))
-                   for f in ("README.md", "README.en.md", "README.fr.md"))
+                   for f in ("README.md", "README.zh.md", "README.fr.md"))
     if len(html) < expected:
         problems.append("docs/index.html looks stale (rebuild with tools/build_docs.py)")
     if not problems:

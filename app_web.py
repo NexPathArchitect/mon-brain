@@ -571,7 +571,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.startswith("/docs"):
             q = parse_qs(urlparse(self.path).query)
             lang = q.get("lang", ["zh"])[0]
-            name = {"zh": "README.md", "en": "README.en.md", "fr": "README.fr.md"}.get(lang, "README.md")
+            name = {"zh": "README.zh.md", "en": "README.md", "fr": "README.fr.md"}.get(lang, "README.zh.md")
             path = mb.ROOT / name
             md = path.read_text(encoding="utf-8") if path.exists() else f"# {name} not found"
             body = docs_page(md_to_html(md), lang).encode("utf-8")

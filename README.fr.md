@@ -1,8 +1,8 @@
 # mon_brain — outil local Ollama d'organisation / résumé-traduction / révision
 
-**Langues / Languages / 语言**：[Français](README.fr.md) · [English](README.en.md) · [中文](README.md) · [📖 在线文档 / Docs / Documentation](https://nexpatharchitect.github.io/mon-brain/)
+**Langues / Languages / 语言**：[Français](README.fr.md) · [English](README.md) · [中文](README.zh.md) · [📖 在线文档 / Docs / Documentation](https://nexpatharchitect.github.io/mon-brain/)
 
-**← [返回中文版本 / Retour au chinois](README.md)**
+**← [中文版本 / Version chinoise](README.zh.md)**
 
 Outil en ligne de commande tournant sur votre Ollama local : lire la source → découper automatiquement les textes longs et fusionner les résumés → appliquer le prompt du mode → appeler le modèle local → exporter le Markdown dans `sortie/`.
 Les données ne quittent pas la machine ; l'outil ne dépend pas du projet d'atelier du professeur, il réutilise seulement la même façon d'appeler Ollama.

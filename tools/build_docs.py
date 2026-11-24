@@ -1,6 +1,6 @@
 """Build a trilingual static docs page for GitHub Pages.
 
-Reads README.md / README.en.md / README.fr.md, renders each through the same
+Reads README.md / README.zh.md / README.fr.md, renders each through the same
 Markdown converter the local /docs route uses, and writes one self-contained
 docs/index.html with client-side language tabs (no jump to another file when
 you switch language).
@@ -16,7 +16,22 @@ sys.path.insert(0, str(ROOT))
 
 import app_web  # noqa: E402
 
-LANGS = (("zh", "中文", "README.md"), ("en", "English", "README.en.md"), ("fr", "Français", "README.fr.md"))
+LANGS = (("en", "English", "README.md"), ("zh", "中文", "README.zh.md"), ("fr", "Français", "README.fr.md"))
+
+REPO_BLOB = "https://github.com/NexPathArchitect/mon-brain/blob/main/"
+# README links point at sibling .md files; those do not exist on the Pages site,
+# so rewrite them to the GitHub blob URLs (the /docs route does the same).
+LINK_FIX = {
+    'href="README.md"': f'href="{REPO_BLOB}README.md"',
+    'href="README.zh.md"': f'href="{REPO_BLOB}README.zh.md"',
+    'href="README.fr.md"': f'href="{REPO_BLOB}README.fr.md"',
+}
+
+
+def fix_links(html: str) -> str:
+    for old, new in LINK_FIX.items():
+        html = html.replace(old, new)
+    return html
 
 CSS = """
 *{box-sizing:border-box}
@@ -58,7 +73,7 @@ JS = """
   tabs.forEach(function(t){ t.addEventListener('click', function(){ show(t.dataset.lang); }); });
   var want = (location.hash || '').replace('#','');
   var valid = docs.some(function(d){ return d.dataset.lang === want; });
-  show(valid ? want : 'zh');
+  show(valid ? want : 'en');
 })();
 """
 
@@ -70,12 +85,12 @@ def build() -> int:
         if not path.exists():
             print(f"missing {fname}")
             return 1
-        html = app_web.md_to_html(path.read_text(encoding="utf-8"))
+        html = fix_links(app_web.md_to_html(path.read_text(encoding="utf-8")))
         sections.append(f'<div class="doc" data-lang="{code}" hidden>\n{html}\n</div>')
         buttons.append(f'<button class="tab" data-lang="{code}">{label}</button>')
 
     page = f"""<!DOCTYPE html>
-<html lang="zh"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>mon_brain · 使用说明 / Docs</title>
 <meta name="description" content="Local, offline note brain on Ollama: organize / translate-summary / review. Data never leaves your machine.">
