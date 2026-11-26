@@ -120,6 +120,20 @@ cd C:\path\to\mon_brain
 - If local Ollama cannot be reached, the result area shows a red alert telling you to start Ollama.
 - Uploaded files are staged temporarily in `sources\_upload\`; folders older than 24h are auto-cleaned on the next upload. Final notes still land in `sortie\`.
 
+### One-click start (Windows)
+
+Double-click `start.bat` instead of typing the command. It checks five things in order and stops with a readable message at the first failure:
+
+1. `.venv\Scripts\python.exe` exists (otherwise: create the venv and install `requests` / `pypdf`).
+2. GPU: prints the card and VRAM via `nvidia-smi`; if it is missing it warns that runs will fall back to CPU (5–20× slower).
+3. Ollama: reuses it when already listening, otherwise starts `ollama serve` with the GPU flags `FLASH_ATTENTION=1`, `KV_CACHE_TYPE=q8_0`, `NUM_PARALLEL=1`, `MAX_LOADED_MODELS=1`, `KEEP_ALIVE=30m`.
+4. Preset models: `qwen2.5:latest` / `gemma3:12b` / `qwen3:14b`. A missing one produces a warning with the exact `ollama pull` command — it never starts a 40 GB download on its own.
+5. Port 5000: reuses the server only when `GET /api/state` answers like mon_brain; if some other program holds the port it aborts instead of hijacking it.
+
+**GPU needs no configuration — it is already in use.** Measured here (RTX 5070 Ti Laptop, 12 227 MiB): `gemma3:12b` reports `size_vram 7.30 GB / size 7.30 GB`, i.e. 100 % resident on the GPU, load plus a short answer ≈ 13 s.
+
+**Only one model is resident at a time.** 12 GB of VRAM fits exactly one preset model (`qwen3:14b` is the heaviest at 8.6 GB of weights), so switching presets reloads it: expect tens of seconds. That is `MAX_LOADED_MODELS=1` working as intended, not a hang.
+
 ## Examples
 
 Open PowerShell in this folder:

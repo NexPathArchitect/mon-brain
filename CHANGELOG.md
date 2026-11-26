@@ -68,4 +68,5 @@ see `BACKLOG.md` for why and what comes next.
 - Static correction table with hit-based injection (an unconditional table poisoned outputs with unrelated vocabulary).
 - Multi-file merge, incremental update, recap session resume, split warning when the source does not fit.
 - 2026-11-23: 许可证定为「保留所有权利」（非开源，仓库不含 LICENSE 文件，三份 README 增版权章节）；英/法 README 顶部加「← 返回中文」；docs 页重建。
+- 2026-11-25: 新增 start.bat 一键启动（venv/GPU/Ollama/模型/端口五项预检，冷启动注入 GPU 参数）；三份 README 增「启动与 GPU 说明」章节；docs 页重建。
 

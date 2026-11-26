@@ -131,6 +131,17 @@ merged summary
 <li>If local Ollama cannot be reached, the result area shows a red alert telling you to start Ollama.</li>
 <li>Uploaded files are staged temporarily in <code>sources\_upload\</code>; folders older than 24h are auto-cleaned on the next upload. Final notes still land in <code>sortie\</code>.</li>
 </ul>
+<h3>One-click start (Windows)</h3>
+<p>Double-click <code>start.bat</code> instead of typing the command. It checks five things in order and stops with a readable message at the first failure:</p>
+<ol>
+<li><code>.venv\Scripts\python.exe</code> exists (otherwise: create the venv and install <code>requests</code> / <code>pypdf</code>).</li>
+<li>GPU: prints the card and VRAM via <code>nvidia-smi</code>; if it is missing it warns that runs will fall back to CPU (5–20× slower).</li>
+<li>Ollama: reuses it when already listening, otherwise starts <code>ollama serve</code> with the GPU flags <code>FLASH_ATTENTION=1</code>, <code>KV_CACHE_TYPE=q8_0</code>, <code>NUM_PARALLEL=1</code>, <code>MAX_LOADED_MODELS=1</code>, <code>KEEP_ALIVE=30m</code>.</li>
+<li>Preset models: <code>qwen2.5:latest</code> / <code>gemma3:12b</code> / <code>qwen3:14b</code>. A missing one produces a warning with the exact <code>ollama pull</code> command — it never starts a 40 GB download on its own.</li>
+<li>Port 5000: reuses the server only when <code>GET /api/state</code> answers like mon_brain; if some other program holds the port it aborts instead of hijacking it.</li>
+</ol>
+<p><b>GPU needs no configuration — it is already in use.</b> Measured here (RTX 5070 Ti Laptop, 12 227 MiB): <code>gemma3:12b</code> reports <code>size_vram 7.30 GB / size 7.30 GB</code>, i.e. 100 % resident on the GPU, load plus a short answer ≈ 13 s.</p>
+<p><b>Only one model is resident at a time.</b> 12 GB of VRAM fits exactly one preset model (<code>qwen3:14b</code> is the heaviest at 8.6 GB of weights), so switching presets reloads it: expect tens of seconds. That is <code>MAX_LOADED_MODELS=1</code> working as intended, not a hang.</p>
 <h2>Examples</h2>
 <p>Open PowerShell in this folder:</p>
 <pre><code># Use the venv Python directly (no activation needed)
@@ -340,6 +351,17 @@ powershell -ExecutionPolicy Bypass -File tools\fetch_vendor.ps1</code></pre>
 <li>连不上本地 Ollama 时，结果区会用红色醒目提示去启动 Ollama。</li>
 <li>网页上传的文件临时存在 <code>sources\_upload\</code>，超过 24 小时的临时目录会在下次上传时自动清理；生成的正式稿件仍落在 <code>sortie\</code>。</li>
 </ul>
+<h3>Windows 一键启动</h3>
+<p>不想敲命令就双击项目根目录的 <code>start.bat</code>。它按顺序查五件事，第一件不通过就停在那里并给出人话提示：</p>
+<ol>
+<li><code>.venv\Scripts\python.exe</code> 在不在（不在就提示先建环境、装 <code>requests</code> / <code>pypdf</code>）。</li>
+<li>GPU：用 <code>nvidia-smi</code> 打印显卡型号和显存；没有 <code>nvidia-smi</code> 就警告"会退回 CPU，慢 5–20 倍"。</li>
+<li>Ollama：已在监听就直接复用；否则后台起 <code>ollama serve</code>，并显式注入 GPU 参数 <code>FLASH_ATTENTION=1</code>、<code>KV_CACHE_TYPE=q8_0</code>、<code>NUM_PARALLEL=1</code>、<code>MAX_LOADED_MODELS=1</code>、<code>KEEP_ALIVE=30m</code>（这些参数必须先于服务启动生效，继承来的旧环境变量不算数）。</li>
+<li>三档所需模型：<code>qwen2.5:latest</code> / <code>gemma3:12b</code> / <code>qwen3:14b</code>；缺哪个就提示对应的 <code>ollama pull</code> 命令，<b>不会自作主张替你下 40 GB</b>。</li>
+<li>5000 端口：只有 <code>GET /api/state</code> 返回的确实是 mon_brain 才复用；端口被别的程序占着就报错退出，不会把别人当成自己的服务。</li>
+</ol>
+<p><b>GPU 不用配置，它已经在用。</b> 本机实测（RTX 5070 Ti Laptop，12 227 MiB）：<code>gemma3:12b</code> 的 <code>size_vram 7.30 GB / size 7.30 GB</code>，即 <b>100% 驻留显存</b>，加载加一次短回答约 13 秒。</p>
+<p><b>同一时刻只驻留一个模型。</b> 12 GB 显存刚好放得下一个档位的模型（最重的 <code>qwen3:14b</code> 权重 8.6 GB），所以<b>来回切档位会重新加载模型，等十几秒属正常</b>——那是 <code>MAX_LOADED_MODELS=1</code> 在起作用，不是卡死。</p>
 <h2>命令示例</h2>
 <p>在本目录打开 PowerShell：</p>
 <pre><code># 直接用 venv 的 Python（无需激活）
@@ -533,6 +555,17 @@ résumé fusionné
 <li>Si Ollama local est inaccessible, la zone de résultat affiche une alerte rouge pour le démarrer.</li>
 <li>Les fichiers envoyés sont temporaires dans <code>sources\_upload\</code> ; les dossiers de plus de 24 h sont nettoyés au prochain envoi. Les notes finales restent dans <code>sortie\</code>.</li>
 </ul>
+<h3>Démarrage en un clic (Windows)</h3>
+<p>Double-cliquez sur <code>start.bat</code> plutôt que de taper la commande. Il vérifie cinq points dans l'ordre et s'arrête au premier échec avec un message clair :</p>
+<ol>
+<li><code>.venv\Scripts\python.exe</code> existe (sinon : créer le venv et installer <code>requests</code> / <code>pypdf</code>).</li>
+<li>GPU : affiche la carte et la VRAM via <code>nvidia-smi</code> ; en son absence, avertit que tout retombera sur le CPU (5 à 20 fois plus lent).</li>
+<li>Ollama : réutilisé s'il écoute déjà, sinon démarrage de <code>ollama serve</code> avec les paramètres GPU <code>FLASH_ATTENTION=1</code>, <code>KV_CACHE_TYPE=q8_0</code>, <code>NUM_PARALLEL=1</code>, <code>MAX_LOADED_MODELS=1</code>, <code>KEEP_ALIVE=30m</code>.</li>
+<li>Modèles des profils : <code>qwen2.5:latest</code> / <code>gemma3:12b</code> / <code>qwen3:14b</code>. Un modèle manquant déclenche seulement un avertissement avec la commande <code>ollama pull</code> — il ne lance jamais un téléchargement de 40 Go.</li>
+<li>Port 5000 : réutilisé uniquement si <code>GET /api/state</code> répond bien comme mon_brain ; sinon le script s'arrête au lieu de prendre le port d'un autre programme.</li>
+</ol>
+<p><b>Le GPU n'a rien à configurer : il est déjà utilisé.</b> Mesuré ici (RTX 5070 Ti Laptop, 12 227 Mio) : <code>gemma3:12b</code> affiche <code>size_vram 7.30 GB / size 7.30 GB</code>, soit <b>100 % résident sur le GPU</b>, chargement plus réponse courte ≈ 13 s.</p>
+<p><b>Un seul modèle résident à la fois.</b> 12 Go de VRAM contiennent exactement un modèle d'un profil (<code>qwen3:14b</code> est le plus lourd, 8,6 Go), donc changer de profil recharge le modèle : comptez quelques dizaines de secondes. C'est <code>MAX_LOADED_MODELS=1</code> qui agit, pas un blocage.</p>
 <h2>Exemples</h2>
 <p>Ouvrez PowerShell dans ce dossier :</p>
 <pre><code># Utiliser directement le Python du venv (sans activation)

@@ -118,6 +118,20 @@ cd C:\path\to\mon_brain
 - Si Ollama local est inaccessible, la zone de résultat affiche une alerte rouge pour le démarrer.
 - Les fichiers envoyés sont temporaires dans `sources\_upload\` ; les dossiers de plus de 24 h sont nettoyés au prochain envoi. Les notes finales restent dans `sortie\`.
 
+### Démarrage en un clic (Windows)
+
+Double-cliquez sur `start.bat` plutôt que de taper la commande. Il vérifie cinq points dans l'ordre et s'arrête au premier échec avec un message clair :
+
+1. `.venv\Scripts\python.exe` existe (sinon : créer le venv et installer `requests` / `pypdf`).
+2. GPU : affiche la carte et la VRAM via `nvidia-smi` ; en son absence, avertit que tout retombera sur le CPU (5 à 20 fois plus lent).
+3. Ollama : réutilisé s'il écoute déjà, sinon démarrage de `ollama serve` avec les paramètres GPU `FLASH_ATTENTION=1`, `KV_CACHE_TYPE=q8_0`, `NUM_PARALLEL=1`, `MAX_LOADED_MODELS=1`, `KEEP_ALIVE=30m`.
+4. Modèles des profils : `qwen2.5:latest` / `gemma3:12b` / `qwen3:14b`. Un modèle manquant déclenche seulement un avertissement avec la commande `ollama pull` — il ne lance jamais un téléchargement de 40 Go.
+5. Port 5000 : réutilisé uniquement si `GET /api/state` répond bien comme mon_brain ; sinon le script s'arrête au lieu de prendre le port d'un autre programme.
+
+**Le GPU n'a rien à configurer : il est déjà utilisé.** Mesuré ici (RTX 5070 Ti Laptop, 12 227 Mio) : `gemma3:12b` affiche `size_vram 7.30 GB / size 7.30 GB`, soit **100 % résident sur le GPU**, chargement plus réponse courte ≈ 13 s.
+
+**Un seul modèle résident à la fois.** 12 Go de VRAM contiennent exactement un modèle d'un profil (`qwen3:14b` est le plus lourd, 8,6 Go), donc changer de profil recharge le modèle : comptez quelques dizaines de secondes. C'est `MAX_LOADED_MODELS=1` qui agit, pas un blocage.
+
 ## Exemples
 
 Ouvrez PowerShell dans ce dossier :

@@ -153,6 +153,20 @@ cd C:\path\to\mon_brain
 - 连不上本地 Ollama 时，结果区会用红色醒目提示去启动 Ollama。
 - 网页上传的文件临时存在 `sources\_upload\`，超过 24 小时的临时目录会在下次上传时自动清理；生成的正式稿件仍落在 `sortie\`。
 
+### Windows 一键启动
+
+不想敲命令就双击项目根目录的 `start.bat`。它按顺序查五件事，第一件不通过就停在那里并给出人话提示：
+
+1. `.venv\Scripts\python.exe` 在不在（不在就提示先建环境、装 `requests` / `pypdf`）。
+2. GPU：用 `nvidia-smi` 打印显卡型号和显存；没有 `nvidia-smi` 就警告"会退回 CPU，慢 5–20 倍"。
+3. Ollama：已在监听就直接复用；否则后台起 `ollama serve`，并显式注入 GPU 参数 `FLASH_ATTENTION=1`、`KV_CACHE_TYPE=q8_0`、`NUM_PARALLEL=1`、`MAX_LOADED_MODELS=1`、`KEEP_ALIVE=30m`（这些参数必须先于服务启动生效，继承来的旧环境变量不算数）。
+4. 三档所需模型：`qwen2.5:latest` / `gemma3:12b` / `qwen3:14b`；缺哪个就提示对应的 `ollama pull` 命令，**不会自作主张替你下 40 GB**。
+5. 5000 端口：只有 `GET /api/state` 返回的确实是 mon_brain 才复用；端口被别的程序占着就报错退出，不会把别人当成自己的服务。
+
+**GPU 不用配置，它已经在用。** 本机实测（RTX 5070 Ti Laptop，12 227 MiB）：`gemma3:12b` 的 `size_vram 7.30 GB / size 7.30 GB`，即 **100% 驻留显存**，加载加一次短回答约 13 秒。
+
+**同一时刻只驻留一个模型。** 12 GB 显存刚好放得下一个档位的模型（最重的 `qwen3:14b` 权重 8.6 GB），所以**来回切档位会重新加载模型，等十几秒属正常**——那是 `MAX_LOADED_MODELS=1` 在起作用，不是卡死。
+
 ## 命令示例
 
 在本目录打开 PowerShell：
